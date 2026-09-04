@@ -1,4 +1,5 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+export const API_URL = rawApiUrl.replace(/\/+$/, '');
 
 export interface Listing {
   id: string;
@@ -72,7 +73,8 @@ export interface AdminStats {
 
 // Helper fetcher with error handling
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const url = `${API_URL}${endpoint}`;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${API_URL}${cleanEndpoint}`;
   try {
     const res = await fetch(url, {
       ...options,
