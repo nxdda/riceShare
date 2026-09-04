@@ -117,3 +117,25 @@ This document records the AI-assisted workflows and engineering prompts used dur
 - **How it was Tested**:
   - Executed `npm run build` (compiled cleanly via Turbopack with 0 errors).
   - Verified HTTP 200 response on `http://localhost:3000/`.
+
+---
+
+## 7. Multi-Level User Authentication & Strict Security Policies
+
+- **Tool**: Google Antigravity Coding Agent
+- **Purpose**: Implement dedicated user levels (Customer, Provider, Admin), strict registration rules (Admins cannot register publicly), live password policy checks (8+ chars, uppercase, lowercase, numbers, symbols), name and Sri Lankan phone number validation, and match checks for Confirm Password.
+- **Exact Prompt**:
+  > "Okay. Now lets change it so that it has seperate user levels as Customet, Provider and Admin. Change that from the sign-in/up (New admins cannot be signed-up, only sign-in). And add a 'Confirm Password', 'Name' and 'Phone Number' fields with proper validations in the Sign-up form. Change the password policy to minimum 8 characters with letters, symbols, numbers and capital letters."
+- **What was Generated**:
+  - `frontend/lib/auth.ts`: Authentication manager, session storage in `localStorage`, role definitions (`CUSTOMER`, `PROVIDER`, `ADMIN`), password policy validator (`validatePassword`), Sri Lankan phone validator (`validateSriLankanPhone`), and email validator (`validateEmail`).
+  - `frontend/app/sign-up/[[...sign-up]]/page.tsx`: Custom registration UI with role toggle cards (Customer vs Food Provider), Full Name validation, Sri Lankan phone verification, live interactive password security checklist (min 8 chars, A-Z, a-z, 0-9, symbols), and Confirm Password match indicator. Blocked Admin registration with informative guidance.
+  - `frontend/app/sign-in/[[...sign-in]]/page.tsx`: Multi-level sign-in portal with tabs for Customer, Food Provider, and Administrator. Added Admin restriction checks and 1-click Quick Demo buttons for hackathon judges.
+  - `frontend/components/Navbar.tsx`: Integrated real-time auth change event listener, displaying the logged-in user's name, role badge, and Sign Out button.
+  - `backend/src/routes/users.ts`: Updated `/sync` to support `phone` and added `/login` endpoint for role and credential validation.
+- **How it was Reviewed & Modified**:
+  - Tested client-side validation prevention when passwords lack numbers or symbols.
+  - Verified that non-admin accounts attempting Admin portal sign-in receive an Access Denied alert.
+- **How it was Tested**:
+  - Executed `npm run build` (Turbopack compiled 8/8 routes with 0 errors).
+  - Tested `/sign-in` and `/sign-up` endpoints via curl (both returning HTTP 200 OK).
+  - Pushed commit `714f64f` to GitHub repository `nxdda/riceShare`.
