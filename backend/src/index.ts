@@ -15,32 +15,12 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-// Configure CORS
-const allowedOrigins = [
-  FRONTEND_URL,
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-];
-
+// Configure CORS universally (allows localhost, 127.0.0.1, LAN IPs, Vercel & Render)
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl, postman)
-    if (!origin) return callback(null, true);
-    
-    // In production, match specific domain or Vercel preview domains
-    const isAllowed = allowedOrigins.includes(origin) || 
-      origin.endsWith('.vercel.app') ||
-      process.env.NODE_ENV !== 'production';
-
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true,
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
 
 app.use(express.json({ limit: '10mb' }));
