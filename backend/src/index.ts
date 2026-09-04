@@ -73,7 +73,7 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   });
 });
 
-app.listen(PORT, () => {
+app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`🍚 RiceShare Backend API running on port ${PORT}`);
   console.log(`Allowed Frontend Origin: ${FRONTEND_URL}`);
 });

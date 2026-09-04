@@ -1,5 +1,32 @@
-const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-export const API_URL = rawApiUrl.replace(/\/+$/, '');
+export function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const { hostname, protocol } = window.location;
+
+    // 1. If running on Vercel deployment or production hosted domain
+    if (hostname.includes('vercel.app') || hostname.includes('riceshare')) {
+      const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
+      if (configured && !configured.includes('localhost') && !configured.includes('127.0.0.1')) {
+        return configured.replace(/\/+$/, '');
+      }
+      return 'https://riceshare-backend.onrender.com';
+    }
+
+    // 2. If accessing from another device via local network IP (e.g. 172.x.x.x, 192.168.x.x)
+    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
+      if (configured && !configured.includes('localhost') && !configured.includes('127.0.0.1')) {
+        return configured.replace(/\/+$/, '');
+      }
+      // Target the host computer's backend on port 5000
+      return `${protocol}//${hostname}:5000`;
+    }
+  }
+
+  const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  return rawApiUrl.replace(/\/+$/, '');
+}
+
+export const API_URL = getApiBaseUrl();
 
 export interface Listing {
   id: string;
@@ -74,7 +101,8 @@ export interface AdminStats {
 // Helper fetcher with error handling
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const url = `${API_URL}${cleanEndpoint}`;
+  const baseUrl = getApiBaseUrl();
+  const url = `${baseUrl}${cleanEndpoint}`;
   try {
     const res = await fetch(url, {
       ...options,

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { store } from '../lib/store';
+import { store, prisma } from '../lib/store';
 
 const router = Router();
 
@@ -39,15 +39,40 @@ router.post('/sync', (req: Request, res: Response) => {
 });
 
 // POST /api/users/login (Authenticate by email & role)
-router.post('/login', (req: Request, res: Response) => {
+router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, role } = req.body;
     if (!email) {
       return res.status(400).json({ success: false, message: 'Email is required' });
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 1. Check in-memory store
     const allUsers = store.getUsers();
-    let user = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+    let user = allUsers.find(u => u.email.toLowerCase() === normalizedEmail);
+
+    // 2. If not found in memory, query Neon PostgreSQL directly
+    if (!user && prisma) {
+      try {
+        const dbUser = await prisma.user.findFirst({
+          where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+        });
+        if (dbUser) {
+          user = {
+            id: dbUser.id,
+            clerkUserId: dbUser.clerkUserId,
+            name: dbUser.name,
+            email: dbUser.email,
+            role: dbUser.role as any,
+            createdAt: dbUser.createdAt.toISOString(),
+          };
+          (store as any).users.push(user);
+        }
+      } catch (dbErr: any) {
+        console.warn('Prisma lookup failed on login:', dbErr.message);
+      }
+    }
 
     if (!user) {
       // If user does not exist yet, allow login for customer/provider with that role, or reject if admin
@@ -58,7 +83,7 @@ router.post('/login', (req: Request, res: Response) => {
         });
       }
 
-      user = store.upsertUser(`user_email_${Date.now()}`, email.split('@')[0], email, role || 'CUSTOMER');
+      user = store.upsertUser(`user_email_${Date.now()}`, normalizedEmail.split('@')[0], normalizedEmail, role || 'CUSTOMER');
     }
 
     // Role check
@@ -74,7 +99,33 @@ router.post('/login', (req: Request, res: Response) => {
       user.role = role;
     }
 
-    const provider = store.getProviderByUserId(user.id);
+    let provider = store.getProviderByUserId(user.id);
+    if (!provider && prisma) {
+      try {
+        const dbProv = await prisma.provider.findFirst({
+          where: { userId: user.id },
+        });
+        if (dbProv) {
+          provider = {
+            id: dbProv.id,
+            userId: dbProv.userId,
+            businessName: dbProv.businessName,
+            businessType: dbProv.businessType,
+            location: dbProv.location,
+            phone: '+94 77 111 2222',
+            createdAt: dbProv.createdAt.toISOString(),
+          };
+          (store as any).providers.push(provider);
+        }
+      } catch (err: any) {
+        // ignore
+      }
+    }
+
+    // If role is PROVIDER and no provider profile exists, create a default one
+    if (user.role === 'PROVIDER' && !provider) {
+      provider = store.createProvider(user.id, `${user.name}'s Kitchen`, 'Restaurant', 'Colombo', '+94 77 111 2222');
+    }
 
     res.json({
       success: true,

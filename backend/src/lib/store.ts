@@ -275,11 +275,25 @@ class MemoryStore {
   }
 
   createListing(data: Omit<Listing, 'id' | 'createdAt' | 'updatedAt' | 'quantityRemaining'> & { quantityRemaining?: number }): Listing {
-    const provider = this.getProviderById(data.providerId);
+    let prov = this.getProviderById(data.providerId) || this.getProviderByUserId(data.providerId);
+    if (!prov) {
+      prov = this.createProvider(
+        data.providerId,
+        data.providerName || 'Food Provider',
+        'Restaurant',
+        data.location || 'Colombo',
+        '+94 77 111 2222'
+      );
+    }
+
+    const effectiveProviderId = prov.id;
+    const effectiveProviderName = data.providerName || prov.businessName || 'RiceShare Partner';
+
     const newListing: Listing = {
       id: `list-${Date.now()}`,
       ...data,
-      providerName: data.providerName || provider?.businessName || 'RiceShare Partner',
+      providerId: effectiveProviderId,
+      providerName: effectiveProviderName,
       quantityRemaining: data.quantityRemaining ?? data.quantity,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -290,7 +304,7 @@ class MemoryStore {
       prisma.listing.create({
         data: {
           id: newListing.id,
-          providerId: newListing.providerId,
+          providerId: effectiveProviderId,
           foodName: newListing.foodName,
           category: newListing.category,
           quantity: newListing.quantity,
