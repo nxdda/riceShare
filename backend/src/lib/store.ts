@@ -5,25 +5,7 @@ import { Listing, Provider, User, Reservation, DonationRequest, Report, ListingS
 let prisma: PrismaClient | null = null;
 let isPrismaConnected = false;
 
-if (process.env.DATABASE_URL) {
-  try {
-    prisma = new PrismaClient();
-    prisma.$connect()
-      .then(() => {
-        isPrismaConnected = true;
-        console.log('Connected to PostgreSQL database via Prisma.');
-      })
-      .catch((err) => {
-        console.warn('PostgreSQL database connection failed, falling back to in-memory store:', err.message);
-        isPrismaConnected = false;
-      });
-  } catch (err: any) {
-    console.warn('Prisma initialization skipped:', err.message);
-    isPrismaConnected = false;
-  }
-}
-
-// Resilient in-memory store
+// Resilient store with transparent PostgreSQL persistence
 class MemoryStore {
   private users: User[] = [...initialUsers];
   private providers: Provider[] = [...initialProviders];
@@ -31,6 +13,107 @@ class MemoryStore {
   private reservations: Reservation[] = [...initialReservations];
   private donationRequests: DonationRequest[] = [...initialDonationRequests];
   private reports: Report[] = [];
+
+  constructor() {
+    this.initPrisma();
+  }
+
+  async initPrisma() {
+    if (process.env.DATABASE_URL) {
+      try {
+        prisma = new PrismaClient();
+        await prisma.$connect();
+        isPrismaConnected = true;
+        console.log(' Connected to PostgreSQL database via Prisma.');
+        await this.hydrateFromDatabase();
+      } catch (err: any) {
+        console.warn('⚠️ PostgreSQL database connection failed, falling back to in-memory store:', err.message);
+        isPrismaConnected = false;
+      }
+    }
+  }
+
+  async hydrateFromDatabase() {
+    if (!prisma) return;
+    try {
+      const dbUsers = await prisma.user.findMany();
+      if (dbUsers.length > 0) {
+        for (const u of dbUsers) {
+          const idx = this.users.findIndex(x => x.clerkUserId === u.clerkUserId);
+          if (idx === -1) {
+            this.users.push({
+              id: u.id,
+              clerkUserId: u.clerkUserId,
+              name: u.name,
+              email: u.email,
+              role: u.role,
+              createdAt: u.createdAt.toISOString(),
+            });
+          } else {
+            this.users[idx] = {
+              ...this.users[idx],
+              name: u.name,
+              email: u.email,
+              role: u.role,
+            };
+          }
+        }
+        console.log(`[Neon DB] Hydrated ${dbUsers.length} users from Neon PostgreSQL.`);
+      }
+
+      const dbProviders = await prisma.provider.findMany();
+      if (dbProviders.length > 0) {
+        for (const p of dbProviders) {
+          const idx = this.providers.findIndex(x => x.id === p.id);
+          if (idx === -1) {
+            this.providers.push({
+              id: p.id,
+              userId: p.userId,
+              businessName: p.businessName,
+              businessType: p.businessType,
+              location: p.location,
+              phone: (p as any).phone || '+94 77 111 2222',
+              createdAt: p.createdAt.toISOString(),
+            });
+          }
+        }
+        console.log(`[Neon DB] Hydrated ${dbProviders.length} providers from Neon PostgreSQL.`);
+      }
+
+      const dbListings = await prisma.listing.findMany();
+      if (dbListings.length > 0) {
+        for (const l of dbListings) {
+          const idx = this.listings.findIndex(x => x.id === l.id);
+          if (idx === -1) {
+            const prov = this.providers.find(p => p.id === l.providerId);
+            this.listings.push({
+              id: l.id,
+              providerId: l.providerId,
+              providerName: prov?.businessName || 'RiceShare Partner',
+              foodName: l.foodName,
+              category: l.category,
+              quantity: l.quantity,
+              quantityRemaining: l.quantityRemaining,
+              originalPrice: l.originalPrice,
+              sellingPrice: l.sellingPrice,
+              listingType: l.listingType,
+              location: l.location,
+              imageUrl: l.imageUrl || undefined,
+              pickupStart: l.pickupStart.toISOString(),
+              pickupEnd: l.pickupEnd.toISOString(),
+              description: l.description,
+              status: l.status,
+              createdAt: l.createdAt.toISOString(),
+              updatedAt: l.updatedAt.toISOString(),
+            });
+          }
+        }
+        console.log(`[Neon DB] Hydrated ${dbListings.length} listings from Neon PostgreSQL.`);
+      }
+    } catch (err: any) {
+      console.error('[Neon DB] Failed to hydrate from PostgreSQL:', err.message);
+    }
+  }
 
   // USERS
   getUsers(): User[] {
@@ -58,7 +141,32 @@ class MemoryStore {
       user.name = name || user.name;
       user.email = email || user.email;
       if (phone) user.phone = phone;
+      user.role = role;
     }
+
+    // Persist to Neon PostgreSQL
+    if (prisma) {
+      prisma.user.upsert({
+        where: { clerkUserId },
+        update: {
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
+        create: {
+          id: user.id,
+          clerkUserId: user.clerkUserId,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
+      }).then(() => {
+        console.log(`[Neon DB] Successfully persisted user: ${user.email} (${user.role})`);
+      }).catch((dbErr) => {
+        console.error('[Neon DB] Error persisting user to PostgreSQL:', dbErr.message);
+      });
+    }
+
     return user;
   }
 
@@ -86,6 +194,29 @@ class MemoryStore {
       createdAt: new Date().toISOString(),
     };
     this.providers.push(provider);
+
+    if (prisma) {
+      prisma.provider.upsert({
+        where: { id: provider.id },
+        update: {
+          businessName,
+          businessType,
+          location,
+        },
+        create: {
+          id: provider.id,
+          userId,
+          businessName,
+          businessType,
+          location,
+        },
+      }).then(() => {
+        console.log(`[Neon DB] Successfully persisted provider: ${businessName}`);
+      }).catch((dbErr) => {
+        console.error('[Neon DB] Error persisting provider to PostgreSQL:', dbErr.message);
+      });
+    }
+
     return provider;
   }
 
@@ -148,6 +279,33 @@ class MemoryStore {
       updatedAt: new Date().toISOString(),
     };
     this.listings.unshift(newListing);
+
+    if (prisma) {
+      prisma.listing.create({
+        data: {
+          id: newListing.id,
+          providerId: newListing.providerId,
+          foodName: newListing.foodName,
+          category: newListing.category,
+          quantity: newListing.quantity,
+          quantityRemaining: newListing.quantityRemaining,
+          originalPrice: newListing.originalPrice,
+          sellingPrice: newListing.sellingPrice,
+          listingType: newListing.listingType as any,
+          location: newListing.location,
+          imageUrl: newListing.imageUrl,
+          pickupStart: new Date(newListing.pickupStart),
+          pickupEnd: new Date(newListing.pickupEnd),
+          description: newListing.description,
+          status: newListing.status as any,
+        },
+      }).then(() => {
+        console.log(`[Neon DB] Successfully persisted listing: ${newListing.foodName}`);
+      }).catch((dbErr) => {
+        console.error('[Neon DB] Error persisting listing to PostgreSQL:', dbErr.message);
+      });
+    }
+
     return newListing;
   }
 
