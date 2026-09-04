@@ -47,8 +47,9 @@ export default function SignInPage() {
         name: demoName,
         email: demoEmail,
         role,
-        businessName: role === 'PROVIDER' ? 'ABC Restaurant' : undefined,
-        businessType: role === 'PROVIDER' ? 'Restaurant' : undefined,
+        businessName: res?.data?.provider?.businessName || (role === 'PROVIDER' ? 'ABC Restaurant' : undefined),
+        businessType: res?.data?.provider?.businessType || (role === 'PROVIDER' ? 'Restaurant' : undefined),
+        providerId: res?.data?.provider?.id || (role === 'PROVIDER' ? 'prov-abc' : undefined),
       });
 
       // Redirect to target dashboard
@@ -67,6 +68,7 @@ export default function SignInPage() {
         name: demoName,
         email: demoEmail,
         role,
+        providerId: role === 'PROVIDER' ? 'prov-abc' : undefined,
       });
       if (role === 'ADMIN') router.push('/admin/dashboard');
       else if (role === 'PROVIDER') router.push('/provider/dashboard');
@@ -120,6 +122,7 @@ export default function SignInPage() {
         role: selectedRole,
         businessName: res.data.provider?.businessName,
         businessType: res.data.provider?.businessType,
+        providerId: res.data.provider?.id,
       });
 
       // Route to destination

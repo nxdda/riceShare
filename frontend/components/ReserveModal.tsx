@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, CheckCircle2, AlertCircle, Clock, MapPin, Store, CreditCard, ShieldCheck } from 'lucide-react';
 import { Listing, api, Reservation } from '@/lib/api';
+import { getStoredUser } from '@/lib/auth';
 
 interface ReserveModalProps {
   listing: Listing;
@@ -17,6 +18,14 @@ export default function ReserveModal({ listing, onClose, onSuccess }: ReserveMod
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmedReservation, setConfirmedReservation] = useState<Reservation | null>(null);
+
+  useEffect(() => {
+    const user = getStoredUser();
+    if (user) {
+      if (user.name) setName(user.name);
+      if (user.phone) setPhone(user.phone);
+    }
+  }, []);
 
   const totalAmount = quantity * listing.sellingPrice;
 
@@ -39,8 +48,10 @@ export default function ReserveModal({ listing, onClose, onSuccess }: ReserveMod
 
     setLoading(true);
     try {
+      const user = getStoredUser();
       const res = await api.createReservation({
         listingId: listing.id,
+        userId: user?.id,
         customerName: name.trim(),
         customerPhone: phone.trim(),
         quantity,

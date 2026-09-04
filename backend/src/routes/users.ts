@@ -6,7 +6,7 @@ const router = Router();
 // POST /api/users/sync
 router.post('/sync', (req: Request, res: Response) => {
   try {
-    const { clerkUserId, name, email, role, phone } = req.body;
+    const { clerkUserId, name, email, role, phone, businessName, businessType } = req.body;
 
     if (!clerkUserId) {
       return res.status(400).json({ success: false, message: 'Clerk User ID is required' });
@@ -17,7 +17,13 @@ router.post('/sync', (req: Request, res: Response) => {
 
     // If user is a provider and has no provider profile yet, create a default one
     if (user.role === 'PROVIDER' && !provider) {
-      provider = store.createProvider(user.id, `${user.name}'s Kitchen`, 'Restaurant', 'Colombo', phone || '+94 77 111 2222');
+      provider = store.createProvider(
+        user.id,
+        businessName || `${user.name}'s Kitchen`,
+        businessType || 'Restaurant',
+        'Colombo',
+        phone || '+94 77 111 2222'
+      );
     }
 
     res.json({

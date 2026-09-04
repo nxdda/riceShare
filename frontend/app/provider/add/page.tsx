@@ -40,6 +40,8 @@ export default function AddFoodPage() {
       setIsAuthorized(true);
       if (user.businessName) {
         setProviderName(user.businessName);
+      } else if (user.name) {
+        setProviderName(user.name);
       }
     }
   }, []);
@@ -52,7 +54,7 @@ export default function AddFoodPage() {
   const [originalPrice, setOriginalPrice] = useState(400);
   const [sellingPrice, setSellingPrice] = useState(180);
   const [location, setLocation] = useState('Malabe');
-  const [providerName, setProviderName] = useState('ABC Restaurant');
+  const [providerName, setProviderName] = useState('');
 
   // Default times: today pickup window
   const now = new Date();
@@ -143,9 +145,13 @@ export default function AddFoodPage() {
     setLoading(true);
 
     try {
+      const user = getStoredUser();
+      const currentProviderId = user?.providerId || user?.id || 'prov-abc';
+      const currentProviderName = providerName.trim() || user?.businessName || user?.name || 'RiceShare Partner';
+
       const res = await api.createListing({
-        providerId: 'prov-abc',
-        providerName: providerName.trim() || 'RiceShare Partner',
+        providerId: currentProviderId,
+        providerName: currentProviderName,
         foodName: foodName.trim(),
         category,
         quantity: Number(quantity),
@@ -162,7 +168,7 @@ export default function AddFoodPage() {
       if (res.success) {
         setSuccess(true);
         setTimeout(() => {
-          router.push('/browse');
+          router.push('/provider/dashboard');
         }, 1500);
       } else {
         setError(res.message || 'Failed to publish listing');

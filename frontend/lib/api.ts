@@ -215,7 +215,7 @@ export const api = {
   },
 
   // User Sync, Login & Role Switcher
-  syncUser: async (payload: { clerkUserId: string; name: string; email: string; role?: string; phone?: string }): Promise<any> => {
+  syncUser: async (payload: { clerkUserId: string; name: string; email: string; role?: string; phone?: string; businessName?: string; businessType?: string }): Promise<any> => {
     return fetchJson('/api/users/sync', {
       method: 'POST',
       body: JSON.stringify(payload),

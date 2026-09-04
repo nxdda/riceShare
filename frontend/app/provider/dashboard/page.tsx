@@ -7,7 +7,7 @@ import {
   CheckCircle, XCircle, Clock, MapPin, RefreshCw, AlertCircle, Eye, Tag
 } from 'lucide-react';
 import { api, Listing, Reservation, DonationRequest } from '@/lib/api';
-import { getStoredUser } from '@/lib/auth';
+import { getStoredUser, StoredUser } from '@/lib/auth';
 
 export default function ProviderDashboardPage() {
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'LISTINGS' | 'RESERVATIONS' | 'DONATIONS'>('OVERVIEW');
@@ -18,14 +18,30 @@ export default function ProviderDashboardPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [currentUser, setCurrentUser] = useState<StoredUser | null>(null);
 
   const loadProviderData = async () => {
     setLoading(true);
     try {
+      const user = getStoredUser();
+      setCurrentUser(user);
+
+      if (!user) {
+        setListings([]);
+        setReservations([]);
+        setDonations([]);
+        setLoading(false);
+        return;
+      }
+
+      // If provider, strictly filter listings and orders belonging to this provider
+      // If admin, show all marketplace items
+      const queryParam = user.role === 'ADMIN' ? undefined : { providerId: user.providerId || user.id };
+
       const [listingsRes, resRes, donRes] = await Promise.all([
-        api.getListings(),
-        api.getReservations(),
-        api.getDonationRequests(),
+        api.getListings(queryParam as any),
+        api.getReservations(queryParam),
+        api.getDonationRequests(queryParam),
       ]);
       setListings(listingsRes.data || []);
       setReservations(resRes.data || []);
@@ -131,7 +147,7 @@ export default function ProviderDashboardPage() {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-100 text-orange-900 text-xs font-bold mb-2">
               <Store className="w-3.5 h-3.5" />
-              <span>Provider Partner Portal</span>
+              <span>Provider Partner Portal &bull; {currentUser?.businessName || currentUser?.name || 'Food Provider'}</span>
             </div>
             <h1 className="text-3xl font-black text-slate-900 tracking-tight">
               Provider Dashboard

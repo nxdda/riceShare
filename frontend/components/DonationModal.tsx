@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, CheckCircle2, AlertCircle, HeartHandshake, MapPin, Building } from 'lucide-react';
 import { Listing, api, DonationRequest } from '@/lib/api';
+import { getStoredUser } from '@/lib/auth';
 
 interface DonationModalProps {
   listing: Listing;
@@ -19,6 +20,14 @@ export default function DonationModal({ listing, onClose, onSuccess }: DonationM
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmedRequest, setConfirmedRequest] = useState<DonationRequest | null>(null);
+
+  useEffect(() => {
+    const user = getStoredUser();
+    if (user) {
+      if (user.name) setName(user.name);
+      if (user.phone) setPhone(user.phone);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,8 +52,10 @@ export default function DonationModal({ listing, onClose, onSuccess }: DonationM
 
     setLoading(true);
     try {
+      const user = getStoredUser();
       const res = await api.createDonationRequest({
         listingId: listing.id,
+        userId: user?.id,
         requesterName: name.trim(),
         organization: organization.trim() || undefined,
         phone: phone.trim(),

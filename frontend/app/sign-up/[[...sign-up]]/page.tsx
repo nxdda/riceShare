@@ -94,6 +94,8 @@ export default function SignUpPage() {
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
         role,
+        businessName: role === 'PROVIDER' ? businessName.trim() : undefined,
+        businessType: role === 'PROVIDER' ? businessType : undefined,
       });
 
       // 3. Save session in localStorage
@@ -103,8 +105,9 @@ export default function SignUpPage() {
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
         role,
-        businessName: role === 'PROVIDER' ? businessName.trim() : undefined,
-        businessType: role === 'PROVIDER' ? businessType : undefined,
+        businessName: role === 'PROVIDER' ? (syncRes?.data?.provider?.businessName || businessName.trim()) : undefined,
+        businessType: role === 'PROVIDER' ? (syncRes?.data?.provider?.businessType || businessType) : undefined,
+        providerId: role === 'PROVIDER' ? syncRes?.data?.provider?.id : undefined,
       });
 
       // 4. Redirect based on role

@@ -8,6 +8,7 @@ export interface StoredUser {
   role: UserRole;
   businessName?: string;
   businessType?: string;
+  providerId?: string;
 }
 
 export const PASSWORD_RULES = {

@@ -258,7 +258,13 @@ class MemoryStore {
     }
 
     if (filters?.providerId) {
-      results = results.filter(l => l.providerId === filters.providerId);
+      const prov = this.getProviderById(filters.providerId) || this.getProviderByUserId(filters.providerId);
+      const validProvIds = new Set<string>([filters.providerId]);
+      if (prov) {
+        validProvIds.add(prov.id);
+        validProvIds.add(prov.userId);
+      }
+      results = results.filter(l => validProvIds.has(l.providerId));
     }
 
     return results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -334,7 +340,13 @@ class MemoryStore {
       list = list.filter(r => r.userId === userId);
     }
     if (providerId) {
-      const providerListings = new Set(this.listings.filter(l => l.providerId === providerId).map(l => l.id));
+      const prov = this.getProviderById(providerId) || this.getProviderByUserId(providerId);
+      const validProvIds = new Set<string>([providerId]);
+      if (prov) {
+        validProvIds.add(prov.id);
+        validProvIds.add(prov.userId);
+      }
+      const providerListings = new Set(this.listings.filter(l => validProvIds.has(l.providerId)).map(l => l.id));
       list = list.filter(r => providerListings.has(r.listingId));
     }
     return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -405,7 +417,13 @@ class MemoryStore {
       list = list.filter(d => d.userId === userId);
     }
     if (providerId) {
-      const providerListings = new Set(this.listings.filter(l => l.providerId === providerId).map(l => l.id));
+      const prov = this.getProviderById(providerId) || this.getProviderByUserId(providerId);
+      const validProvIds = new Set<string>([providerId]);
+      if (prov) {
+        validProvIds.add(prov.id);
+        validProvIds.add(prov.userId);
+      }
+      const providerListings = new Set(this.listings.filter(l => validProvIds.has(l.providerId)).map(l => l.id));
       list = list.filter(d => providerListings.has(d.listingId));
     }
     return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

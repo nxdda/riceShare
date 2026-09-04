@@ -7,19 +7,34 @@ import {
   CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, RefreshCw 
 } from 'lucide-react';
 import { api, Reservation, DonationRequest } from '@/lib/api';
+import { getStoredUser, StoredUser } from '@/lib/auth';
 
 export default function CustomerDashboardPage() {
   const [activeTab, setActiveTab] = useState<'RESERVATIONS' | 'DONATIONS'>('RESERVATIONS');
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [donations, setDonations] = useState<DonationRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<StoredUser | null>(null);
 
   const loadCustomerData = async () => {
     setLoading(true);
     try {
+      const user = getStoredUser();
+      setCurrentUser(user);
+
+      if (!user) {
+        setReservations([]);
+        setDonations([]);
+        setLoading(false);
+        return;
+      }
+
+      // Strictly filter by logged-in user ID (unless platform admin)
+      const queryParam = user.role === 'ADMIN' ? undefined : { userId: user.id };
+
       const [resRes, donRes] = await Promise.all([
-        api.getReservations(),
-        api.getDonationRequests(),
+        api.getReservations(queryParam),
+        api.getDonationRequests(queryParam),
       ]);
       setReservations(resRes.data || []);
       setDonations(donRes.data || []);
@@ -43,6 +58,42 @@ export default function CustomerDashboardPage() {
     return sum + (r.quantity * 220);
   }, 0);
 
+  if (!loading && !currentUser) {
+    return (
+      <div className="min-h-[75vh] flex items-center justify-center p-4 bg-slate-50">
+        <div className="max-w-md w-full text-center bg-white p-8 rounded-3xl border border-amber-200 shadow-xl space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-xs">
+            <User className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">Sign In to View Your Meals</h2>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Track your reserved surplus meals, pick up times, and community donation requests by signing in to your RiceShare account.
+          </p>
+          <div className="pt-2 flex flex-col gap-2">
+            <Link
+              href="/sign-in?role=CUSTOMER"
+              className="inline-flex items-center justify-center py-3 px-4 rounded-xl bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition-colors shadow-xs"
+            >
+              Sign In as Customer
+            </Link>
+            <Link
+              href="/sign-up"
+              className="inline-flex items-center justify-center py-2.5 px-4 rounded-xl border border-amber-300 text-amber-800 font-semibold text-xs hover:bg-amber-50 transition-colors"
+            >
+              Create an Account
+            </Link>
+            <Link
+              href="/browse"
+              className="inline-flex items-center justify-center py-2 px-4 text-slate-500 hover:text-slate-700 text-xs transition-colors"
+            >
+              Back to Browse Meals
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 py-8 sm:py-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
@@ -52,7 +103,7 @@ export default function CustomerDashboardPage() {
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-bold mb-2">
               <User className="w-3.5 h-3.5" />
-              <span>Customer Meal Portal</span>
+              <span>Customer Meal Portal &bull; {currentUser?.name || 'Customer'}</span>
             </div>
             <h1 className="text-3xl font-black text-slate-900 tracking-tight">
               My Meals &amp; Impact
