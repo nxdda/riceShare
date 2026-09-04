@@ -1,0 +1,155 @@
+// Prisma schema for RiceShare
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  PROVIDER
+  ADMIN
+}
+
+enum ListingType {
+  SALE
+  DONATION
+}
+
+enum ListingStatus {
+  AVAILABLE
+  SOLD_OUT
+  ENDING_SOON
+  CLOSED
+}
+
+enum ReservationStatus {
+  CONFIRMED
+  COLLECTED
+  CANCELLED
+}
+
+enum DonationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COLLECTED
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+}
+
+model User {
+  id               String            @id @default(uuid())
+  clerkUserId      String            @unique @map("clerk_user_id")
+  name             String
+  email            String
+  role             Role              @default(CUSTOMER)
+  createdAt        DateTime          @default(now()) @map("created_at")
+  providers        Provider[]
+  reservations     Reservation[]
+  donationRequests DonationRequest[]
+  reports          Report[]
+
+  @@map("users")
+}
+
+model Provider {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName String    @map("business_name")
+  businessType String    @map("business_type") // restaurant, hotel, bakery, cafe, supermarket, event_organizer
+  location     String
+  createdAt    DateTime  @default(now()) @map("created_at")
+  listings     Listing[]
+
+  @@map("providers")
+}
+
+model Listing {
+  id                String            @id @default(uuid())
+  providerId        String            @map("provider_id")
+  provider          Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  foodName          String            @map("food_name")
+  category          String // Rice & Curry, Prepared Meals, Bakery, Snacks, Desserts, Beverages, Other
+  quantity          Int
+  quantityRemaining Int               @map("quantity_remaining")
+  originalPrice     Float             @map("original_price")
+  sellingPrice      Float             @map("selling_price")
+  listingType       ListingType       @map("listing_type")
+  location          String
+  pickupStart       DateTime          @map("pickup_start")
+  pickupEnd         DateTime          @map("pickup_end")
+  description       String
+  imageUrl          String?           @map("image_url")
+  status            ListingStatus     @default(AVAILABLE)
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  reservations      Reservation[]
+  donationRequests  DonationRequest[]
+  reports           Report[]
+
+  @@index([location])
+  @@index([category])
+  @@index([listingType])
+  @@index([status])
+  @@map("listings")
+}
+
+model Reservation {
+  id            String            @id @default(uuid())
+  listingId     String            @map("listing_id")
+  listing       Listing           @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  userId        String?           @map("user_id")
+  user          User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  customerName  String            @map("customer_name")
+  customerPhone String            @map("customer_phone")
+  quantity      Int
+  totalAmount   Float             @map("total_amount")
+  status        ReservationStatus @default(CONFIRMED)
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  @@index([listingId])
+  @@index([userId])
+  @@map("reservations")
+}
+
+model DonationRequest {
+  id            String         @id @default(uuid())
+  listingId     String         @map("listing_id")
+  listing       Listing        @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  userId        String?        @map("user_id")
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  requesterName String         @map("requester_name")
+  organization  String?
+  phone         String
+  quantity      Int
+  reason        String
+  status        DonationStatus @default(PENDING)
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  @@index([listingId])
+  @@index([userId])
+  @@map("donation_requests")
+}
+
+model Report {
+  id          String       @id @default(uuid())
+  listingId   String       @map("listing_id")
+  listing     Listing      @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reportedBy  String       @map("reported_by")
+  user        User         @relation(fields: [reportedBy], references: [id], onDelete: Cascade)
+  reason      String
+  description String
+  status      ReportStatus @default(PENDING)
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@map("reports")
+}
