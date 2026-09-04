@@ -7,6 +7,7 @@ import {
   Trash2, RefreshCw, CheckCircle, HeartHandshake, DollarSign 
 } from 'lucide-react';
 import { api, AdminStats, Listing } from '@/lib/api';
+import { getStoredUser } from '@/lib/auth';
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -16,6 +17,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
   const loadAdminData = async () => {
     setLoading(true);
@@ -36,7 +38,14 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
-    loadAdminData();
+    const user = getStoredUser();
+    if (!user || user.role !== 'ADMIN') {
+      setIsAuthorized(false);
+      setLoading(false);
+    } else {
+      setIsAuthorized(true);
+      loadAdminData();
+    }
   }, []);
 
   const handleModerate = async (id: string, action: 'REMOVE' | 'RESTORE') => {
@@ -54,6 +63,37 @@ export default function AdminDashboardPage() {
       setTimeout(() => setMessage(null), 3000);
     }
   };
+
+  if (isAuthorized === false) {
+    const user = getStoredUser();
+    return (
+      <div className="min-h-[75vh] flex items-center justify-center p-4 bg-slate-50">
+        <div className="max-w-md w-full text-center bg-white p-8 rounded-3xl border border-rose-100 shadow-xl space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto shadow-xs">
+            <Shield className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">Administrator Access Restricted</h2>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            This dashboard is restricted to authorized RiceShare system administrators. You are currently logged in as a <strong className="text-slate-900">{user?.role || 'Guest'}</strong>.
+          </p>
+          <div className="pt-2 flex flex-col gap-2">
+            <Link
+              href="/sign-in?role=ADMIN"
+              className="inline-flex items-center justify-center py-3 px-4 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 transition-colors shadow-xs"
+            >
+              Sign In as Administrator
+            </Link>
+            <Link
+              href="/"
+              className="inline-flex items-center justify-center py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-50 transition-colors"
+            >
+              Return to Homepage
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 sm:py-12">

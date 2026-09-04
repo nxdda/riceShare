@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PlusCircle, ArrowLeft, AlertCircle, CheckCircle2, Tag, HeartHandshake, Sparkles, Store, Image as ImageIcon, Upload, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { getStoredUser } from '@/lib/auth';
 
 const CATEGORIES = [
   'Rice & Curry',
@@ -29,6 +30,19 @@ const LOCATIONS = [
 
 export default function AddFoodPage() {
   const router = useRouter();
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!user || (user.role !== 'PROVIDER' && user.role !== 'ADMIN')) {
+      setIsAuthorized(false);
+    } else {
+      setIsAuthorized(true);
+      if (user.businessName) {
+        setProviderName(user.businessName);
+      }
+    }
+  }, []);
 
   // Form State
   const [foodName, setFoodName] = useState('');
@@ -159,6 +173,43 @@ export default function AddFoodPage() {
       setLoading(false);
     }
   };
+
+  if (isAuthorized === false) {
+    const user = getStoredUser();
+    return (
+      <div className="min-h-[75vh] flex items-center justify-center p-4 bg-slate-50">
+        <div className="max-w-md w-full text-center bg-white p-8 rounded-3xl border border-amber-200 shadow-xl space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-xs">
+            <PlusCircle className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">Food Provider Portal Restricted</h2>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Only registered restaurants, bakeries, hotels, and food providers can list surplus food. You are currently logged in as a <strong className="text-slate-900">{user?.role || 'Guest'}</strong>.
+          </p>
+          <div className="pt-2 flex flex-col gap-2">
+            <Link
+              href="/sign-in?role=PROVIDER"
+              className="inline-flex items-center justify-center py-3 px-4 rounded-xl bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition-colors shadow-xs"
+            >
+              Sign In as Food Provider
+            </Link>
+            <Link
+              href="/sign-up"
+              className="inline-flex items-center justify-center py-2.5 px-4 rounded-xl border border-amber-300 text-amber-800 font-semibold text-xs hover:bg-amber-50 transition-colors"
+            >
+              Register as a Food Provider
+            </Link>
+            <Link
+              href="/browse"
+              className="inline-flex items-center justify-center py-2 px-4 text-slate-500 hover:text-slate-700 text-xs transition-colors"
+            >
+              Back to Browse Meals
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 sm:py-12">

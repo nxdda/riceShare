@@ -7,6 +7,7 @@ import {
   CheckCircle, XCircle, Clock, MapPin, RefreshCw, AlertCircle, Eye, Tag
 } from 'lucide-react';
 import { api, Listing, Reservation, DonationRequest } from '@/lib/api';
+import { getStoredUser } from '@/lib/auth';
 
 export default function ProviderDashboardPage() {
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'LISTINGS' | 'RESERVATIONS' | 'DONATIONS'>('OVERVIEW');
@@ -16,6 +17,7 @@ export default function ProviderDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
   const loadProviderData = async () => {
     setLoading(true);
@@ -36,7 +38,15 @@ export default function ProviderDashboardPage() {
   };
 
   useEffect(() => {
-    loadProviderData();
+    const user = getStoredUser();
+    // Allow access if logged in as PROVIDER or ADMIN
+    if (!user || (user.role !== 'PROVIDER' && user.role !== 'ADMIN')) {
+      setIsAuthorized(false);
+      setLoading(false);
+    } else {
+      setIsAuthorized(true);
+      loadProviderData();
+    }
   }, []);
 
   // Handle donation accept/reject
@@ -74,6 +84,43 @@ export default function ProviderDashboardPage() {
   const acceptedDonationsCount = donations.filter(d => d.status === 'ACCEPTED').length;
   const totalMealsRescued = reservations.reduce((s, r) => s + r.quantity, 0) + 
     donations.filter(d => d.status === 'ACCEPTED').reduce((s, d) => s + d.quantity, 0);
+
+  if (isAuthorized === false) {
+    const user = getStoredUser();
+    return (
+      <div className="min-h-[75vh] flex items-center justify-center p-4 bg-slate-50">
+        <div className="max-w-md w-full text-center bg-white p-8 rounded-3xl border border-amber-200 shadow-xl space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-xs">
+            <Store className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">Food Provider Portal Restricted</h2>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            This dashboard is reserved for restaurants, bakeries, hotels, and food providers to manage their surplus listings. You are currently logged in as a <strong className="text-slate-900">{user?.role || 'Guest'}</strong>.
+          </p>
+          <div className="pt-2 flex flex-col gap-2">
+            <Link
+              href="/sign-in?role=PROVIDER"
+              className="inline-flex items-center justify-center py-3 px-4 rounded-xl bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition-colors shadow-xs"
+            >
+              Sign In as Food Provider
+            </Link>
+            <Link
+              href="/sign-up"
+              className="inline-flex items-center justify-center py-2.5 px-4 rounded-xl border border-amber-300 text-amber-800 font-semibold text-xs hover:bg-amber-50 transition-colors"
+            >
+              Register as a Food Provider
+            </Link>
+            <Link
+              href="/browse"
+              className="inline-flex items-center justify-center py-2 px-4 text-slate-500 hover:text-slate-700 text-xs transition-colors"
+            >
+              Back to Browse Meals
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 sm:py-12">

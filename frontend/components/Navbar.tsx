@@ -2,15 +2,16 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { SignedIn, SignedOut, UserButton, useUser } from '@clerk/nextjs';
-import { UtensilsCrossed, Menu, X, PlusCircle, Shield, User as UserIcon, Store, Sparkles } from 'lucide-react';
+import { UserButton, useUser } from '@clerk/nextjs';
+import { 
+  UtensilsCrossed, Menu, X, PlusCircle, Shield, 
+  User as UserIcon, Store, LogOut, HeartHandshake, LayoutDashboard 
+} from 'lucide-react';
 import { api } from '@/lib/api';
-
 import { getStoredUser, clearStoredUser, StoredUser, UserRole } from '@/lib/auth';
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [currentRole, setCurrentRole] = useState<UserRole>('CUSTOMER');
   const [localUser, setLocalUser] = useState<StoredUser | null>(null);
   const { user, isLoaded, isSignedIn } = useUser();
 
@@ -18,12 +19,7 @@ export default function Navbar() {
   useEffect(() => {
     const syncLocal = () => {
       const stored = getStoredUser();
-      if (stored) {
-        setLocalUser(stored);
-        setCurrentRole(stored.role);
-      } else {
-        setLocalUser(null);
-      }
+      setLocalUser(stored);
     };
 
     syncLocal();
@@ -33,42 +29,26 @@ export default function Navbar() {
 
   // Sync Clerk user with backend when signed in
   useEffect(() => {
-    if (isLoaded && isSignedIn && user) {
+    if (isLoaded && isSignedIn && user && !localUser) {
       api.syncUser({
         clerkUserId: user.id,
         name: user.fullName || user.firstName || 'RiceShare Member',
         email: user.primaryEmailAddress?.emailAddress || '',
       }).then(res => {
-        if (res?.data?.user?.role) {
-          setCurrentRole(res.data.user.role);
+        if (res?.data?.user) {
+          setLocalUser(res.data.user);
         }
       }).catch(err => console.warn('Could not sync user role:', err));
     }
-  }, [isLoaded, isSignedIn, user]);
+  }, [isLoaded, isSignedIn, user, localUser]);
 
-  const handleRoleSwitch = async (role: UserRole) => {
-    setCurrentRole(role);
-    if (localUser) {
-      const updated: StoredUser = { ...localUser, role };
-      setLocalUser(updated);
-      try {
-        localStorage.setItem('riceshare_user', JSON.stringify(updated));
-        localStorage.setItem('riceshare_role', role);
-      } catch {}
-    }
-    if (user?.id) {
-      try {
-        await api.switchRole(user.id, role);
-      } catch (err) {
-        console.warn('Role switch failed:', err);
-      }
-    }
-  };
+  const isLoggedIn = !!localUser || (isLoaded && isSignedIn);
+  const currentRole: UserRole = localUser?.role || 'CUSTOMER';
+  const displayName = localUser?.name || user?.fullName || user?.firstName || 'User';
 
   const handleSignOut = () => {
     clearStoredUser();
     setLocalUser(null);
-    setCurrentRole('CUSTOMER');
     window.location.href = '/';
   };
 
@@ -92,108 +72,148 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* Desktop Navigation */}
+          {/* Desktop Navigation (Rendered strictly by user type) */}
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-700">
-            <Link href="/browse" className="hover:text-amber-600 transition-colors flex items-center gap-1.5">
-              <UtensilsCrossed className="w-4 h-4 text-amber-500" />
-              Find Food
-            </Link>
-            <Link href="/provider/add" className="hover:text-amber-600 transition-colors flex items-center gap-1.5">
-              <PlusCircle className="w-4 h-4 text-orange-500" />
-              List Surplus Food
-            </Link>
-            <Link href="/#how-it-works" className="hover:text-amber-600 transition-colors">
-              How It Works
-            </Link>
-            <Link href="/#impact" className="hover:text-amber-600 transition-colors">
-              Impact
-            </Link>
+            
+            {/* 1. ADMIN Navigation */}
+            {isLoggedIn && currentRole === 'ADMIN' && (
+              <>
+                <Link href="/admin/dashboard" className="text-rose-700 font-bold hover:text-rose-800 transition-colors flex items-center gap-1.5">
+                  <Shield className="w-4 h-4 text-rose-600" />
+                  Admin Dashboard
+                </Link>
+                <Link href="/browse" className="hover:text-amber-600 transition-colors flex items-center gap-1.5">
+                  <UtensilsCrossed className="w-4 h-4 text-amber-500" />
+                  Marketplace Oversight
+                </Link>
+                <Link href="/#impact" className="hover:text-amber-600 transition-colors">
+                  Impact Analytics
+                </Link>
+              </>
+            )}
 
-            {/* Quick Demo Role Switcher */}
-            <div className="flex items-center gap-1 bg-amber-50/80 border border-amber-200/70 rounded-full px-2.5 py-1 text-xs text-slate-700">
-              <span className="text-slate-400 font-semibold uppercase text-[9px] tracking-wider pr-1">Demo View:</span>
-              <button
-                onClick={() => handleRoleSwitch('CUSTOMER')}
-                className={`px-2 py-0.5 rounded-full transition-all text-xs font-semibold ${
-                  currentRole === 'CUSTOMER' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:text-amber-700'
-                }`}
-                title="Customer Perspective"
-              >
-                Customer
-              </button>
-              <button
-                onClick={() => handleRoleSwitch('PROVIDER')}
-                className={`px-2 py-0.5 rounded-full transition-all text-xs font-semibold ${
-                  currentRole === 'PROVIDER' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:text-amber-700'
-                }`}
-                title="Provider Perspective"
-              >
-                Provider
-              </button>
-              <button
-                onClick={() => handleRoleSwitch('ADMIN')}
-                className={`px-2 py-0.5 rounded-full transition-all text-xs font-semibold ${
-                  currentRole === 'ADMIN' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:text-amber-700'
-                }`}
-                title="Admin Perspective"
-              >
-                Admin
-              </button>
-            </div>
+            {/* 2. PROVIDER Navigation */}
+            {isLoggedIn && currentRole === 'PROVIDER' && (
+              <>
+                <Link href="/provider/add" className="text-amber-700 font-bold hover:text-amber-800 transition-colors flex items-center gap-1.5">
+                  <PlusCircle className="w-4 h-4 text-orange-500" />
+                  List Surplus Food
+                </Link>
+                <Link href="/provider/dashboard" className="hover:text-amber-600 transition-colors flex items-center gap-1.5">
+                  <Store className="w-4 h-4 text-amber-500" />
+                  Provider Dashboard
+                </Link>
+                <Link href="/browse" className="hover:text-amber-600 transition-colors flex items-center gap-1.5">
+                  <UtensilsCrossed className="w-4 h-4 text-slate-400" />
+                  Browse Food
+                </Link>
+                <Link href="/#impact" className="hover:text-amber-600 transition-colors">
+                  Impact
+                </Link>
+              </>
+            )}
+
+            {/* 3. CUSTOMER Navigation (Logged in) */}
+            {isLoggedIn && currentRole === 'CUSTOMER' && (
+              <>
+                <Link href="/browse" className="hover:text-amber-600 transition-colors flex items-center gap-1.5">
+                  <UtensilsCrossed className="w-4 h-4 text-amber-500" />
+                  Find Food
+                </Link>
+                <Link href="/customer/dashboard" className="hover:text-amber-600 transition-colors flex items-center gap-1.5 font-medium">
+                  <UserIcon className="w-4 h-4 text-amber-500" />
+                  My Orders & Meals
+                </Link>
+                <Link href="/#how-it-works" className="hover:text-amber-600 transition-colors">
+                  How It Works
+                </Link>
+                <Link href="/#impact" className="hover:text-amber-600 transition-colors">
+                  Impact
+                </Link>
+              </>
+            )}
+
+            {/* 4. VISITOR Navigation (Not logged in) */}
+            {!isLoggedIn && (
+              <>
+                <Link href="/browse" className="hover:text-amber-600 transition-colors flex items-center gap-1.5">
+                  <UtensilsCrossed className="w-4 h-4 text-amber-500" />
+                  Find Food
+                </Link>
+                <Link href="/sign-up" className="hover:text-amber-600 transition-colors flex items-center gap-1.5">
+                  <PlusCircle className="w-4 h-4 text-orange-500" />
+                  List Surplus Food
+                </Link>
+                <Link href="/#how-it-works" className="hover:text-amber-600 transition-colors">
+                  How It Works
+                </Link>
+                <Link href="/#impact" className="hover:text-amber-600 transition-colors">
+                  Impact
+                </Link>
+              </>
+            )}
+
           </nav>
 
           {/* User Controls */}
           <div className="hidden md:flex items-center gap-3">
-            {/* Direct Dashboard Link Based on Selected/Synced Role */}
-            {currentRole === 'PROVIDER' && (
-              <Link
-                href="/provider/dashboard"
-                className="flex items-center gap-1.5 text-xs font-semibold bg-orange-100/70 text-orange-800 hover:bg-orange-200/70 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                <Store className="w-3.5 h-3.5" />
-                Provider Portal
-              </Link>
-            )}
-            {currentRole === 'ADMIN' && (
+            
+            {/* Role-Specific Portal Button */}
+            {isLoggedIn && currentRole === 'ADMIN' && (
               <Link
                 href="/admin/dashboard"
-                className="flex items-center gap-1.5 text-xs font-semibold bg-purple-100/70 text-purple-800 hover:bg-purple-200/70 px-3 py-1.5 rounded-lg transition-colors"
+                className="flex items-center gap-1.5 text-xs font-bold bg-rose-50 border border-rose-200 text-rose-800 hover:bg-rose-100 px-3 py-1.5 rounded-xl transition-colors shadow-xs"
               >
-                <Shield className="w-3.5 h-3.5" />
+                <Shield className="w-3.5 h-3.5 text-rose-600" />
                 Admin Portal
               </Link>
             )}
-            {currentRole === 'CUSTOMER' && (
+
+            {isLoggedIn && currentRole === 'PROVIDER' && (
+              <Link
+                href="/provider/dashboard"
+                className="flex items-center gap-1.5 text-xs font-bold bg-amber-50 border border-amber-200 text-amber-900 hover:bg-amber-100 px-3 py-1.5 rounded-xl transition-colors shadow-xs"
+              >
+                <Store className="w-3.5 h-3.5 text-amber-600" />
+                Provider Portal
+              </Link>
+            )}
+
+            {isLoggedIn && currentRole === 'CUSTOMER' && (
               <Link
                 href="/customer/dashboard"
-                className="flex items-center gap-1.5 text-xs font-semibold bg-amber-100/70 text-amber-800 hover:bg-amber-200/70 px-3 py-1.5 rounded-lg transition-colors"
+                className="flex items-center gap-1.5 text-xs font-bold bg-amber-50 border border-amber-200 text-amber-900 hover:bg-amber-100 px-3 py-1.5 rounded-xl transition-colors shadow-xs"
               >
-                <UserIcon className="w-3.5 h-3.5" />
+                <UserIcon className="w-3.5 h-3.5 text-amber-600" />
                 My Meals
               </Link>
             )}
-            {localUser ? (
-              <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200">
+
+            {/* Profile & Sign Out (When Logged In) */}
+            {isLoggedIn ? (
+              <div className="flex items-center gap-2.5 pl-3 border-l border-slate-200">
                 <div className="flex flex-col items-end">
-                  <span className="text-xs font-bold text-slate-900 leading-none">{localUser.name}</span>
+                  <span className="text-xs font-bold text-slate-900 leading-none">{displayName}</span>
                   <span className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${
-                    localUser.role === 'ADMIN' ? 'text-rose-600' : localUser.role === 'PROVIDER' ? 'text-orange-600' : 'text-amber-600'
+                    currentRole === 'ADMIN' 
+                      ? 'text-rose-600' 
+                      : currentRole === 'PROVIDER' 
+                      ? 'text-orange-600' 
+                      : 'text-amber-600'
                   }`}>
-                    {localUser.role}
+                    {currentRole}
                   </span>
                 </div>
                 <button
                   onClick={handleSignOut}
-                  className="text-xs text-slate-500 hover:text-slate-800 px-2 py-1 rounded-md hover:bg-slate-100 transition-colors"
+                  className="text-xs font-medium text-slate-500 hover:text-rose-700 px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors"
+                  title="Sign Out"
                 >
                   Sign Out
                 </button>
               </div>
-            ) : isLoaded && isSignedIn ? (
-              <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-                <UserButton />
-              </div>
             ) : (
+              /* Auth Buttons (When Logged Out) */
               <div className="flex items-center gap-2">
                 <Link
                   href="/sign-in"
@@ -211,7 +231,7 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile menu button */}
+          {/* Mobile Menu Toggle */}
           <div className="md:hidden flex items-center gap-2">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -225,81 +245,125 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Navigation Drawer */}
+      {/* Mobile Navigation Drawer (Role-Specific) */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-b border-amber-100 bg-white px-4 pt-2 pb-6 space-y-3 animate-in slide-in-from-top-2 duration-200">
+        <div className="md:hidden border-b border-amber-100 bg-white px-4 pt-2 pb-6 space-y-2.5 animate-in slide-in-from-top-2 duration-200">
+          
+          {/* Admin Mobile Links */}
+          {isLoggedIn && currentRole === 'ADMIN' && (
+            <>
+              <Link
+                href="/admin/dashboard"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 py-2 text-base font-bold text-rose-700 hover:text-rose-800"
+              >
+                <Shield className="w-5 h-5 text-rose-600" />
+                Admin Dashboard
+              </Link>
+              <Link
+                href="/browse"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-2 text-base font-medium text-slate-800 hover:text-amber-600"
+              >
+                Marketplace Oversight
+              </Link>
+            </>
+          )}
+
+          {/* Provider Mobile Links */}
+          {isLoggedIn && currentRole === 'PROVIDER' && (
+            <>
+              <Link
+                href="/provider/dashboard"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 py-2 text-base font-bold text-amber-800 hover:text-amber-900"
+              >
+                <Store className="w-5 h-5 text-amber-600" />
+                Provider Dashboard
+              </Link>
+              <Link
+                href="/provider/add"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 py-2 text-base font-medium text-slate-800 hover:text-amber-600"
+              >
+                <PlusCircle className="w-5 h-5 text-orange-500" />
+                List Surplus Food
+              </Link>
+              <Link
+                href="/browse"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-2 text-base font-medium text-slate-800 hover:text-amber-600"
+              >
+                Browse Food
+              </Link>
+            </>
+          )}
+
+          {/* Customer Mobile Links */}
+          {isLoggedIn && currentRole === 'CUSTOMER' && (
+            <>
+              <Link
+                href="/browse"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 py-2 text-base font-medium text-slate-800 hover:text-amber-600"
+              >
+                <UtensilsCrossed className="w-5 h-5 text-amber-500" />
+                Find Food
+              </Link>
+              <Link
+                href="/customer/dashboard"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 py-2 text-base font-bold text-amber-800 hover:text-amber-900"
+              >
+                <UserIcon className="w-5 h-5 text-amber-600" />
+                My Meals & Orders
+              </Link>
+            </>
+          )}
+
+          {/* Visitor Mobile Links */}
+          {!isLoggedIn && (
+            <>
+              <Link
+                href="/browse"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 py-2 text-base font-medium text-slate-800 hover:text-amber-600"
+              >
+                <UtensilsCrossed className="w-5 h-5 text-amber-500" />
+                Find Food
+              </Link>
+              <Link
+                href="/sign-up"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 py-2 text-base font-medium text-slate-800 hover:text-amber-600"
+              >
+                <PlusCircle className="w-5 h-5 text-orange-500" />
+                List Surplus Food
+              </Link>
+            </>
+          )}
+
           <Link
-            href="/browse"
+            href="/#how-it-works"
             onClick={() => setMobileMenuOpen(false)}
             className="block py-2 text-base font-medium text-slate-800 hover:text-amber-600"
           >
-            Find Food
+            How It Works
           </Link>
           <Link
-            href="/provider/add"
+            href="/#impact"
             onClick={() => setMobileMenuOpen(false)}
             className="block py-2 text-base font-medium text-slate-800 hover:text-amber-600"
           >
-            List Surplus Food
-          </Link>
-          <Link
-            href="/customer/dashboard"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 text-base font-medium text-slate-800 hover:text-amber-600"
-          >
-            Customer Dashboard
-          </Link>
-          <Link
-            href="/provider/dashboard"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 text-base font-medium text-slate-800 hover:text-amber-600"
-          >
-            Provider Dashboard
-          </Link>
-          <Link
-            href="/admin/dashboard"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 text-base font-medium text-slate-800 hover:text-amber-600"
-          >
-            Admin Dashboard
+            Impact
           </Link>
 
-          {/* Mobile Demo Role Switcher */}
-          <div className="pt-2 border-t border-slate-100">
-            <span className="block text-xs font-semibold text-slate-400 mb-2">Switch Demo Perspective:</span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => { handleRoleSwitch('CUSTOMER'); setMobileMenuOpen(false); }}
-                className={`flex-1 py-1 text-xs font-semibold rounded-md border text-center ${
-                  currentRole === 'CUSTOMER' ? 'bg-amber-600 text-white border-amber-600' : 'bg-slate-50 border-slate-200 text-slate-700'
-                }`}
-              >
-                Customer
-              </button>
-              <button
-                onClick={() => { handleRoleSwitch('PROVIDER'); setMobileMenuOpen(false); }}
-                className={`flex-1 py-1 text-xs font-semibold rounded-md border text-center ${
-                  currentRole === 'PROVIDER' ? 'bg-amber-600 text-white border-amber-600' : 'bg-slate-50 border-slate-200 text-slate-700'
-                }`}
-              >
-                Provider
-              </button>
-              <button
-                onClick={() => { handleRoleSwitch('ADMIN'); setMobileMenuOpen(false); }}
-                className={`flex-1 py-1 text-xs font-semibold rounded-md border text-center ${
-                  currentRole === 'ADMIN' ? 'bg-amber-600 text-white border-amber-600' : 'bg-slate-50 border-slate-200 text-slate-700'
-                }`}
-              >
-                Admin
-              </button>
-            </div>
-          </div>
-
-          {localUser ? (
+          {/* Mobile User Profile or Auth Buttons */}
+          {isLoggedIn ? (
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
               <div className="flex flex-col">
-                <span className="text-sm font-bold text-slate-900">{localUser.name}</span>
-                <span className="text-xs text-amber-600 font-semibold">{localUser.role}</span>
+                <span className="text-sm font-bold text-slate-900">{displayName}</span>
+                <span className="text-xs text-amber-600 font-semibold">{currentRole}</span>
               </div>
               <button
                 onClick={() => { handleSignOut(); setMobileMenuOpen(false); }}
@@ -308,7 +372,7 @@ export default function Navbar() {
                 Sign Out
               </button>
             </div>
-          ) : isLoaded && !isSignedIn ? (
+          ) : (
             <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
               <Link
                 href="/sign-in"
@@ -325,7 +389,8 @@ export default function Navbar() {
                 Sign Up
               </Link>
             </div>
-          ) : null}
+          )}
+
         </div>
       )}
     </header>
