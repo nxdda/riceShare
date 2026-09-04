@@ -10,6 +10,7 @@ export interface User {
   clerkUserId: string;
   name: string;
   email: string;
+  phone?: string;
   role: Role;
   createdAt: string;
 }

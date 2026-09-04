@@ -41,7 +41,7 @@ class MemoryStore {
     return this.users.find(u => u.clerkUserId === clerkUserId);
   }
 
-  upsertUser(clerkUserId: string, name: string, email: string, role: 'CUSTOMER' | 'PROVIDER' | 'ADMIN' = 'CUSTOMER'): User {
+  upsertUser(clerkUserId: string, name: string, email: string, role: 'CUSTOMER' | 'PROVIDER' | 'ADMIN' = 'CUSTOMER', phone?: string): User {
     let user = this.getUserByClerkId(clerkUserId);
     if (!user) {
       user = {
@@ -49,6 +49,7 @@ class MemoryStore {
         clerkUserId,
         name: name || 'RiceShare User',
         email: email || '',
+        phone: phone || '',
         role,
         createdAt: new Date().toISOString(),
       };
@@ -56,6 +57,7 @@ class MemoryStore {
     } else {
       user.name = name || user.name;
       user.email = email || user.email;
+      if (phone) user.phone = phone;
     }
     return user;
   }

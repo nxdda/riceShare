@@ -212,9 +212,16 @@ export const api = {
     });
   },
 
-  // User Sync & Demo Role Switcher
-  syncUser: async (payload: { clerkUserId: string; name: string; email: string; role?: string }): Promise<any> => {
+  // User Sync, Login & Role Switcher
+  syncUser: async (payload: { clerkUserId: string; name: string; email: string; role?: string; phone?: string }): Promise<any> => {
     return fetchJson('/api/users/sync', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  loginUser: async (payload: { email: string; role?: string }): Promise<any> => {
+    return fetchJson('/api/users/login', {
       method: 'POST',
       body: JSON.stringify(payload),
     });

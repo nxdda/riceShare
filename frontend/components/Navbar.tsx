@@ -6,12 +6,32 @@ import { SignedIn, SignedOut, UserButton, useUser } from '@clerk/nextjs';
 import { UtensilsCrossed, Menu, X, PlusCircle, Shield, User as UserIcon, Store, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api';
 
+import { getStoredUser, clearStoredUser, StoredUser, UserRole } from '@/lib/auth';
+
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [currentRole, setCurrentRole] = useState<'CUSTOMER' | 'PROVIDER' | 'ADMIN'>('CUSTOMER');
+  const [currentRole, setCurrentRole] = useState<UserRole>('CUSTOMER');
+  const [localUser, setLocalUser] = useState<StoredUser | null>(null);
   const { user, isLoaded, isSignedIn } = useUser();
 
-  // Sync user with backend when signed in
+  // Load and subscribe to local user auth state
+  useEffect(() => {
+    const syncLocal = () => {
+      const stored = getStoredUser();
+      if (stored) {
+        setLocalUser(stored);
+        setCurrentRole(stored.role);
+      } else {
+        setLocalUser(null);
+      }
+    };
+
+    syncLocal();
+    window.addEventListener('riceshare_auth_change', syncLocal);
+    return () => window.removeEventListener('riceshare_auth_change', syncLocal);
+  }, []);
+
+  // Sync Clerk user with backend when signed in
   useEffect(() => {
     if (isLoaded && isSignedIn && user) {
       api.syncUser({
@@ -26,8 +46,16 @@ export default function Navbar() {
     }
   }, [isLoaded, isSignedIn, user]);
 
-  const handleRoleSwitch = async (role: 'CUSTOMER' | 'PROVIDER' | 'ADMIN') => {
+  const handleRoleSwitch = async (role: UserRole) => {
     setCurrentRole(role);
+    if (localUser) {
+      const updated: StoredUser = { ...localUser, role };
+      setLocalUser(updated);
+      try {
+        localStorage.setItem('riceshare_user', JSON.stringify(updated));
+        localStorage.setItem('riceshare_role', role);
+      } catch {}
+    }
     if (user?.id) {
       try {
         await api.switchRole(user.id, role);
@@ -35,6 +63,13 @@ export default function Navbar() {
         console.warn('Role switch failed:', err);
       }
     }
+  };
+
+  const handleSignOut = () => {
+    clearStoredUser();
+    setLocalUser(null);
+    setCurrentRole('CUSTOMER');
+    window.location.href = '/';
   };
 
   return (
@@ -137,14 +172,28 @@ export default function Navbar() {
                 My Meals
               </Link>
             )}
-
-            {isLoaded && isSignedIn && (
+            {localUser ? (
+              <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200">
+                <div className="flex flex-col items-end">
+                  <span className="text-xs font-bold text-slate-900 leading-none">{localUser.name}</span>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${
+                    localUser.role === 'ADMIN' ? 'text-rose-600' : localUser.role === 'PROVIDER' ? 'text-orange-600' : 'text-amber-600'
+                  }`}>
+                    {localUser.role}
+                  </span>
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  className="text-xs text-slate-500 hover:text-slate-800 px-2 py-1 rounded-md hover:bg-slate-100 transition-colors"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : isLoaded && isSignedIn ? (
               <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
                 <UserButton />
               </div>
-            )}
-
-            {isLoaded && !isSignedIn && (
+            ) : (
               <div className="flex items-center gap-2">
                 <Link
                   href="/sign-in"
@@ -164,9 +213,6 @@ export default function Navbar() {
 
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center gap-2">
-            {isLoaded && isSignedIn && (
-              <UserButton />
-            )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 focus:outline-hidden"
@@ -179,43 +225,43 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Menu */}
+      {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-6 space-y-3 animate-in fade-in">
+        <div className="md:hidden border-b border-amber-100 bg-white px-4 pt-2 pb-6 space-y-3 animate-in slide-in-from-top-2 duration-200">
           <Link
             href="/browse"
             onClick={() => setMobileMenuOpen(false)}
             className="block py-2 text-base font-medium text-slate-800 hover:text-amber-600"
           >
-            🍚 Find Food
+            Find Food
           </Link>
           <Link
             href="/provider/add"
             onClick={() => setMobileMenuOpen(false)}
             className="block py-2 text-base font-medium text-slate-800 hover:text-amber-600"
           >
-            ➕ List Surplus Food
+            List Surplus Food
           </Link>
           <Link
             href="/customer/dashboard"
             onClick={() => setMobileMenuOpen(false)}
             className="block py-2 text-base font-medium text-slate-800 hover:text-amber-600"
           >
-            👤 Customer Dashboard
+            Customer Dashboard
           </Link>
           <Link
             href="/provider/dashboard"
             onClick={() => setMobileMenuOpen(false)}
             className="block py-2 text-base font-medium text-slate-800 hover:text-amber-600"
           >
-            🏪 Provider Dashboard
+            Provider Dashboard
           </Link>
           <Link
             href="/admin/dashboard"
             onClick={() => setMobileMenuOpen(false)}
             className="block py-2 text-base font-medium text-slate-800 hover:text-amber-600"
           >
-            🛡️ Admin Dashboard
+            Admin Dashboard
           </Link>
 
           {/* Mobile Demo Role Switcher */}
@@ -249,7 +295,20 @@ export default function Navbar() {
             </div>
           </div>
 
-          {isLoaded && !isSignedIn && (
+          {localUser ? (
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-slate-900">{localUser.name}</span>
+                <span className="text-xs text-amber-600 font-semibold">{localUser.role}</span>
+              </div>
+              <button
+                onClick={() => { handleSignOut(); setMobileMenuOpen(false); }}
+                className="text-xs font-bold text-rose-600 hover:text-rose-700 py-1.5 px-3 rounded-lg border border-rose-200"
+              >
+                Sign Out
+              </button>
+            </div>
+          ) : isLoaded && !isSignedIn ? (
             <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
               <Link
                 href="/sign-in"
@@ -266,7 +325,7 @@ export default function Navbar() {
                 Sign Up
               </Link>
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </header>
